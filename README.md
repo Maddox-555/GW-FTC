@@ -1,0 +1,1 @@
+For managing and updating control/driver hubs: Download REV hardware client 2 from this link: https://rhc2.revrobotics.com/download/download.html
