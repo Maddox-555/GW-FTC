@@ -8,305 +8,166 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 
 import java.util.List;
 
-@TeleOp(name = "AprilTag Position Test", group = "Vision")
+@TeleOp(name = "Hive Scoring Decision Test", group = "Vision")
 public class AprilTagPositionTest extends LinearOpMode {
 
     private VisionPortal visionPortal;
     private AprilTagProcessor aprilTag;
 
-    // Desired Hive alignment
-    private static final double DESIRED_DISTANCE = 24.0;  // inches
-    private static final double DESIRED_X = 0.0;          // inches
-    private static final double DESIRED_YAW = 0.0;        // degrees
+    private String alliance = "RED";
 
-    // Acceptable alignment tolerances
-    private static final double DISTANCE_TOLERANCE = 2.0; // inches
-    private static final double X_TOLERANCE = 2.0;        // inches
-    private static final double YAW_TOLERANCE = 5.0;      // degrees
+    private static final double DESIRED_DISTANCE = 24.0;
+    private static final double DISTANCE_TOLERANCE = 2.0;
+    private static final double X_TOLERANCE = 2.0;
+    private static final double BEARING_TOLERANCE = 5.0;
 
     @Override
     public void runOpMode() {
 
-        /*
-         * Create the AprilTag processor.
-         */
         aprilTag = new AprilTagProcessor.Builder()
                 .setDrawTagOutline(true)
                 .setDrawTagID(true)
                 .build();
 
-        /*
-         * Create the VisionPortal and connect
-         * the Logitech C920X webcam.
-         */
         visionPortal = new VisionPortal.Builder()
-                .setCamera(
-                        hardwareMap.get(
-                                WebcamName.class,
-                                "C920X"
-                        )
-                )
+                .setCamera(hardwareMap.get(WebcamName.class, "C920X"))
                 .addProcessor(aprilTag)
                 .build();
 
-        telemetry.addLine("AprilTag processor initialized");
-        telemetry.addData("Camera", "C920X");
+        telemetry.addLine("Hive Scoring Decision Test");
+        telemetry.addLine("Connect DualShock 4 to Driver Hub");
+        telemetry.addLine("Cross = Score request");
+        telemetry.addLine("Circle = Cancel");
+        telemetry.addLine("D-pad LEFT = Red alliance");
+        telemetry.addLine("D-pad RIGHT = Blue alliance");
         telemetry.update();
 
         waitForStart();
 
-        while (opModeIsActive()) {
+        boolean previousA = false;
 
-            telemetry.addData(
-                    "Camera State",
-                    visionPortal.getCameraState()
-            );
+        try {
+            while (opModeIsActive()) {
 
-            /*
-             * Get the current AprilTag detections.
-             */
-            List<AprilTagDetection> detections =
-                    aprilTag.getDetections();
-
-            telemetry.addData(
-                    "Detections",
-                    detections.size()
-            );
-
-            /*
-             * Process every detection.
-             */
-            for (AprilTagDetection detection : detections) {
-
-                /*
-                 * -------------------------------------------------
-                 * SINGLE APRILTAG
-                 * -------------------------------------------------
-                 */
-                if (detection instanceof AprilTagSingleDetection) {
-
-                    AprilTagSingleDetection singleDet =
-                            (AprilTagSingleDetection) detection;
-
-                    telemetry.addLine("Single AprilTag Detected");
-
-                    telemetry.addData(
-                            "Tag ID",
-                            singleDet.id
-                    );
-
-                    /*
-                     * A single tag may or may not have metadata.
-                     * Pose requires metadata containing tag size.
-                     */
-                    if (singleDet.metadata != null) {
-
-                        telemetry.addData(
-                                "Tag Name",
-                                singleDet.metadata.name
-                        );
-
-                    } else {
-
-                        telemetry.addLine(
-                                "Tag Metadata Unavailable"
-                        );
-                    }
+                // DualShock 4 controls
+                if (gamepad2.dpad_left) {
+                    alliance = "RED";
                 }
 
-                /*
-                 * -------------------------------------------------
-                 * APRILTAG CLUSTER
-                 * -------------------------------------------------
-                 */
-                else if (detection instanceof AprilTagClusterDetection) {
+                if (gamepad2.dpad_right) {
+                    alliance = "BLUE";
+                }
 
-                    AprilTagClusterDetection clusterDet =
+                boolean scorePressed = gamepad2.a;
+                boolean cancelPressed = gamepad2.b;
+
+                // Display controller input so you can verify the mapping
+                telemetry.addData("Cross / A", gamepad2.a);
+                telemetry.addData("Circle / B", gamepad2.b);
+                telemetry.addData("Square / X", gamepad2.x);
+                telemetry.addData("Triangle / Y", gamepad2.y);
+                telemetry.addData("Alliance", alliance);
+
+                boolean targetFound = false;
+                boolean targetReady = false;
+                String targetName = "No scoring cluster";
+                String decision = "SEARCHING";
+
+                List<AprilTagDetection> detections =
+                        aprilTag.getDetections();
+
+                for (AprilTagDetection detection : detections) {
+
+                    if (!(detection instanceof AprilTagClusterDetection)) {
+                        continue;
+                    }
+
+                    AprilTagClusterDetection cluster =
                             (AprilTagClusterDetection) detection;
 
-                    telemetry.addLine(
-                            "AprilTag Cluster Detected"
-                    );
+                    if (cluster.metadata == null
+                            || cluster.metadata.name == null) {
+                        continue;
+                    }
 
-                    /*
-                     * Clusters do not have an ID.
-                     * They are identified by their metadata name.
-                     */
-                    telemetry.addData(
-                            "Cluster",
-                            clusterDet.metadata.name
-                    );
+                    String name = cluster.metadata.name;
 
-                    /*
-                     * percentClusterFound is already an integer
-                     * percentage in FTC SDK 12.0.
-                     */
-                    telemetry.addData(
-                            "Cluster Visible",
-                            "%d%%",
-                            clusterDet.percentClusterFound
-                    );
-                }
+                    if (!name.equalsIgnoreCase(alliance + " SCORING")) {
+                        continue;
+                    }
 
-                /*
-                 * -------------------------------------------------
-                 * POSE INFORMATION
-                 * -------------------------------------------------
-                 *
-                 * ftcPose is declared on AprilTagDetection itself,
-                 * so it works for both single tags and clusters.
-                 */
-                if (detection.ftcPose != null) {
+                    targetFound = true;
+                    targetName = name;
+
+                    if (detection.ftcPose == null) {
+                        decision = "TARGET POSE UNAVAILABLE";
+                        break;
+                    }
 
                     double x = detection.ftcPose.x;
                     double y = detection.ftcPose.y;
-                    double z = detection.ftcPose.z;
-
-                    double yaw = detection.ftcPose.yaw;
-                    double pitch = detection.ftcPose.pitch;
+                    double bearing = detection.ftcPose.bearing;
                     double roll = detection.ftcPose.roll;
 
-                    double range = detection.ftcPose.range;
-                    double bearing = detection.ftcPose.bearing;
-                    double elevation = detection.ftcPose.elevation;
-
-                    telemetry.addData(
-                            "X",
-                            "%.2f in",
-                            x
-                    );
-
-                    telemetry.addData(
-                            "Y",
-                            "%.2f in",
-                            y
-                    );
-
-                    telemetry.addData(
-                            "Z",
-                            "%.2f in",
-                            z
-                    );
-
-                    telemetry.addData(
-                            "Yaw",
-                            "%.2f deg",
-                            yaw
-                    );
-
-                    telemetry.addData(
-                            "Pitch",
-                            "%.2f deg",
-                            pitch
-                    );
-
-                    telemetry.addData(
-                            "Roll",
-                            "%.2f deg",
-                            roll
-                    );
-
-                    telemetry.addData(
-                            "Range",
-                            "%.2f in",
-                            range
-                    );
-
-                    telemetry.addData(
-                            "Bearing",
-                            "%.2f deg",
-                            bearing
-                    );
-
-                    telemetry.addData(
-                            "Elevation",
-                            "%.2f deg",
-                            elevation
-                    );
-
-                    /*
-                     * -------------------------------------------------
-                     * TARGET ALIGNMENT
-                     * -------------------------------------------------
-                     *
-                     * Y is the forward distance in the FTC
-                     * reference frame.
-                     */
-                    double distanceError =
-                            y - DESIRED_DISTANCE;
-
-                    double xError =
-                            x - DESIRED_X;
-
-                    double yawError =
-                            yaw - DESIRED_YAW;
-
-                    telemetry.addData(
-                            "Distance Error",
-                            "%.2f in",
-                            distanceError
-                    );
-
-                    telemetry.addData(
-                            "X Error",
-                            "%.2f in",
-                            xError
-                    );
-
-                    telemetry.addData(
-                            "Yaw Error",
-                            "%.2f deg",
-                            yawError
-                    );
-
-                    /*
-                     * Determine whether the camera is
-                     * within the desired alignment window.
-                     */
-                    boolean distanceOK =
-                            Math.abs(distanceError)
+                    boolean upright = Math.abs(roll) < 90.0;
+                    boolean correctDistance =
+                            Math.abs(y - DESIRED_DISTANCE)
                                     <= DISTANCE_TOLERANCE;
+                    boolean centered =
+                            Math.abs(x) <= X_TOLERANCE;
+                    boolean aimed =
+                            Math.abs(bearing) <= BEARING_TOLERANCE;
 
-                    boolean xOK =
-                            Math.abs(xError)
-                                    <= X_TOLERANCE;
+                    targetReady = upright
+                            && correctDistance
+                            && centered
+                            && aimed;
 
-                    boolean yawOK =
-                            Math.abs(yawError)
-                                    <= YAW_TOLERANCE;
+                    telemetry.addData("Target X", "%.1f in", x);
+                    telemetry.addData("Target Y", "%.1f in", y);
+                    telemetry.addData("Bearing", "%.1f deg", bearing);
+                    telemetry.addData("Roll", "%.1f deg", roll);
+                    telemetry.addData("Upright", upright);
+                    telemetry.addData("Correct distance", correctDistance);
+                    telemetry.addData("Centered", centered);
+                    telemetry.addData("Aimed", aimed);
 
-                    if (distanceOK && xOK && yawOK) {
+                    decision = targetReady
+                            ? "TARGET READY"
+                            : "ADJUST POSITION";
 
-                        telemetry.addLine(
-                                "TARGET POSITION OK"
-                        );
-
-                    } else {
-
-                        telemetry.addLine(
-                                "ADJUST POSITION"
-                        );
-                    }
-
-                } else {
-
-                    telemetry.addLine(
-                            "Pose Unavailable"
-                    );
+                    break;
                 }
+
+                if (!targetFound) {
+                    decision = "SEARCHING FOR " + alliance + " SCORING";
+                }
+
+                // Circle cancels; Cross requests a simulated score.
+                if (cancelPressed) {
+                    decision = "SCORE REQUEST CANCELLED";
+                } else if (scorePressed && !previousA) {
+                    if (targetReady) {
+                        decision = "SCORE REQUEST ACCEPTED - SIMULATION ONLY";
+                    } else {
+                        decision = "SCORE REQUEST BLOCKED - NOT READY";
+                    }
+                }
+
+                previousA = scorePressed;
+
+                telemetry.addData("Camera", visionPortal.getCameraState());
+                telemetry.addData("Target", targetName);
+                telemetry.addData("Decision", decision);
+                telemetry.addData("Detections", detections.size());
+                telemetry.addLine("Cross = request | Circle = cancel");
+                telemetry.update();
             }
-
-            telemetry.update();
+        } finally {
+            visionPortal.close();
         }
-
-        /*
-         * Close the VisionPortal when the OpMode ends.
-         */
-        visionPortal.close();
     }
 }
-
