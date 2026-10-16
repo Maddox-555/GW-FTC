@@ -8,3 +8,5 @@ pluginManagement {
 
 include ':FtcRobotController'
 include ':TeamCode'
+
+project(':FtcRobotController').projectDir = new File(settingsDir, 'FtcRobotController/FtcRobotController')
