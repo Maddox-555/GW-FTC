@@ -165,31 +165,63 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
                 .build();
     }
 
-    private boolean alignToScoringTarget() {
 
+    private boolean alignToScoringTarget() {
         long startTime = System.currentTimeMillis();
         int readyFrames = 0;
+
+        // Search at low power while slowly sweeping the camera.
+        final double SEARCH_FORWARD_POWER = 0.10;
+        final double SEARCH_TURN_POWER = 0.10;
+        final long SWEEP_INTERVAL_MS = 1500;
 
         while (opModeIsActive()
                 && System.currentTimeMillis() - startTime < ALIGN_TIMEOUT_MS) {
 
-            AprilTagDetection target =
-                    findScoringTarget(aprilTag.getDetections());
+            long elapsed = System.currentTimeMillis() - startTime;
 
+            List<AprilTagDetection> detections = aprilTag.getDetections();
+            AprilTagDetection target = findScoringTarget(detections);
+
+            // No matching scoring cluster: move forward slowly while
+            // alternating the turn direction to search the field.
             if (target == null || target.ftcPose == null) {
-                stopDrive();
                 readyFrames = 0;
 
+                double searchTurn =
+                        ((elapsed / SWEEP_INTERVAL_MS) % 2 == 0)
+                                ? SEARCH_TURN_POWER
+                                : -SEARCH_TURN_POWER;
+
+                // Use the distance sensor to avoid driving forward
+                // when an object is detected close to the robot.
+                double forwardPower = SEARCH_FORWARD_POWER;
+
+                if (distanceSensor != null) {
+                    double distanceCm =
+                            distanceSensor.getDistance(DistanceUnit.CM);
+
+                    if (Double.isFinite(distanceCm) && distanceCm < 25.0) {
+                        forwardPower = 0.0;
+                    }
+                }
+
+                setDrivePowers(forwardPower, 0.0, searchTurn);
+
+                telemetry.addData("Status", "Searching for scoring cluster");
                 telemetry.addData("Alliance", alliance);
-                telemetry.addLine("Searching for scoring cluster...");
-                telemetry.addData("Elapsed", "%.1f s",
-                        (System.currentTimeMillis() - startTime) / 1000.0);
+                telemetry.addData("Detections", detections.size());
+                telemetry.addData("Search forward", forwardPower);
+                telemetry.addData("Search turn", searchTurn);
+                telemetry.addData("Elapsed ms", elapsed);
                 telemetry.update();
 
                 sleep(20);
                 continue;
             }
 
+            // A matching cluster was found. Stop the search motion
+            // and switch to vision-based alignment.
             double x = target.ftcPose.x;
             double y = target.ftcPose.y;
             double bearing = target.ftcPose.bearing;
@@ -210,45 +242,35 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
             } else {
                 readyFrames = 0;
 
-                // Proportional correction with conservative power limits.
                 double forward = clip(
                         (y - DESIRED_DISTANCE) * FORWARD_GAIN,
-                        -MAX_DRIVE_POWER, MAX_DRIVE_POWER);
+                        -MAX_DRIVE_POWER,
+                        MAX_DRIVE_POWER);
 
                 double strafe = clip(
                         x * STRAFE_GAIN,
-                        -MAX_DRIVE_POWER, MAX_DRIVE_POWER);
+                        -MAX_DRIVE_POWER,
+                        MAX_DRIVE_POWER);
 
                 double turn = clip(
                         bearing * TURN_GAIN,
-                        -MAX_DRIVE_POWER, MAX_DRIVE_POWER);
+                        -MAX_DRIVE_POWER,
+                        MAX_DRIVE_POWER);
 
-                // Mecanum mixing; verify the correction directions
-                // with the wheels raised before a floor test.
                 setDrivePowers(forward, strafe, turn);
             }
 
+            telemetry.addData("Status", "Scoring cluster found");
             telemetry.addData("Alliance", alliance);
-            String targetName = "Cluster";
-            if (target instanceof AprilTagClusterDetection) {
-                AprilTagClusterDetection cluster = (AprilTagClusterDetection) target;
-                if (cluster.metadata != null && cluster.metadata.name != null) {
-                    targetName = cluster.metadata.name;
-                }
-            }
-            telemetry.addData("Target", targetName);
-            telemetry.addData("X", "%.1f in", x);
-            telemetry.addData("Y", "%.1f in", y);
-            telemetry.addData("Bearing", "%.1f deg", bearing);
-            telemetry.addData("Roll", "%.1f deg", roll);
-            telemetry.addData("Upright", upright);
-            telemetry.addData("Distance OK", correctDistance);
+            telemetry.addData("X (in)", x);
+            telemetry.addData("Y (in)", y);
+            telemetry.addData("Bearing (deg)", bearing);
+            telemetry.addData("Roll (deg)", roll);
             telemetry.addData("Centered", centered);
+            telemetry.addData("Correct distance", correctDistance);
             telemetry.addData("Aimed", aimed);
-            telemetry.addData("Ready frames",
-                    "%d / %d", readyFrames, REQUIRED_READY_FRAMES);
-            telemetry.addData("Distance sensor",
-                    "%.1f cm", distanceSensor.getDistance(DistanceUnit.CM));
+            telemetry.addData("Upright", upright);
+            telemetry.addData("Ready frames", readyFrames);
             telemetry.update();
 
             if (readyFrames >= REQUIRED_READY_FRAMES) {
@@ -262,6 +284,7 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
         stopDrive();
         return false;
     }
+
 
     private AprilTagDetection findScoringTarget(
             List<AprilTagDetection> detections) {
