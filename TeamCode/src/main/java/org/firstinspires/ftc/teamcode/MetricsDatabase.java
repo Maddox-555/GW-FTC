@@ -23,7 +23,7 @@ import java.util.Locale;
  * Single shared SQLite database for recording robot metrics.
  * Use MetricsDatabase.getInstance() to access it from any OpMode.
  */
-public class MetricsDatabase extends SQLiteOpenHelper {
+public class MetricsDatabase extends SQLiteOpenHelper implements IPerformanceLog {
 
     private static final String DATABASE_NAME = "metrics.db";
     private static final int DATABASE_VERSION = 1;
@@ -47,6 +47,11 @@ public class MetricsDatabase extends SQLiteOpenHelper {
 
     // volatile so the double-checked lock in getInstance() is safe
     private static volatile MetricsDatabase instance;
+
+    @Override
+    public void logMetric(String opMode, String name, double value) {
+        insertMetric(opMode, name, value);
+    }
 
     private MetricsDatabase(Context context) {
         // Application context avoids leaking an Activity across OpMode runs
