@@ -40,11 +40,12 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
     private static final double STRAFE_GAIN = 0.025;
     private static final double TURN_GAIN = 0.010;
 
-    private static final long ALIGN_TIMEOUT_MS = 8000;
+    private static final long ALIGN_TIMEOUT_MS = 12000;
     private static final int REQUIRED_READY_FRAMES = 5;
 
     private enum AutoState {
         SEARCHING,
+        BACKING_UP,
         ALIGNING,
         READY_TO_SCORE,
         SCORING,
@@ -95,18 +96,19 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
 
             AutoState currentState = AutoState.SEARCHING;
             int readyFrames = 0;
-            long alignmentStartTime = System.currentTimeMillis();
+            long startTime = System.currentTimeMillis();
 
-            final double SEARCH_FORWARD_POWER = 0.10;
-            final double SEARCH_TURN_POWER = 0.10;
+            final double SEARCH_FORWARD_POWER = 0.06; // Slower forward search
+            final double SEARCH_TURN_POWER = 0.08;
             final long SWEEP_INTERVAL_MS = 1500;
 
             while (opModeIsActive()) {
                 long currentTime = System.currentTimeMillis();
-                long totalElapsed = currentTime - alignmentStartTime;
+                long totalElapsed = currentTime - startTime;
 
-                // Check overall alignment/search timeout
-                if ((currentState == AutoState.SEARCHING || currentState == AutoState.ALIGNING)
+                // Check overall timeout
+                if (currentState != AutoState.FINISHED
+                        && currentState != AutoState.SCORING
                         && totalElapsed > ALIGN_TIMEOUT_MS) {
                     currentState = AutoState.TIMEOUT;
                 }
@@ -119,12 +121,14 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
                         AprilTagDetection target =
                                 tagPoseData.findScoringTarget(alliance);
 
+                        // If target seen, transition to backing up
                         if (target != null && target.ftcPose != null) {
-                            currentState = AutoState.ALIGNING;
-                            readyFrames = 0;
+                            stopDrive();
+                            currentState = AutoState.BACKING_UP;
                             break;
                         }
 
+                        // Go forward slowly and sweep turn until target is seen
                         double searchTurn =
                                 ((totalElapsed / SWEEP_INTERVAL_MS) % 2 == 0)
                                         ? SEARCH_TURN_POWER
@@ -137,18 +141,47 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
                                     distanceSensor.getDistance(DistanceUnit.CM);
 
                             if (Double.isFinite(distanceCm)
-                                    && distanceCm < 25.0) {
+                                    && distanceCm < 15.0) {
                                 forwardPower = 0.0;
                             }
                         }
 
                         setDrivePowers(forwardPower, 0.0, searchTurn);
 
-                        telemetry.addData("Status", "SEARCHING");
+                        telemetry.addData("Status", "SEARCHING (Going forward slowly)");
                         telemetry.addData("Alliance", alliance);
                         telemetry.addData("Detections", detections.size());
+                        telemetry.addData("Distance (cm)", distanceSensor != null ? distanceSensor.getDistance(DistanceUnit.CM) : 0.0);
                         telemetry.addData("Elapsed ms", totalElapsed);
                         telemetry.update();
+                        break;
+                    }
+
+                    case BACKING_UP: {
+                        AprilTagDetection target =
+                                tagPoseData.findScoringTarget(alliance);
+
+                        if (target == null || target.ftcPose == null) {
+                            currentState = AutoState.SEARCHING;
+                            break;
+                        }
+
+                        double y = target.ftcPose.y;
+
+                        // Back up until we reach or exceed desired distance (e.g. 24 inches)
+                        if (y < DESIRED_DISTANCE) {
+                            // Move backward
+                            setDrivePowers(-0.10, 0.0, 0.0);
+                            telemetry.addData("Status", "BACKING_UP");
+                            telemetry.addData("Current Y (in)", y);
+                            telemetry.addData("Desired Y (in)", DESIRED_DISTANCE);
+                            telemetry.update();
+                        } else {
+                            // Reached desired distance, stop and start aligning
+                            stopDrive();
+                            currentState = AutoState.ALIGNING;
+                            readyFrames = 0;
+                        }
                         break;
                     }
 
@@ -245,7 +278,7 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
 
                     case SCORING: {
                         stopDrive();
-                        telemetry.addData("Status", "SCORING");
+                        telemetry.addData("Status", "SCORING (Spinning up flywheel & shooting)");
                         telemetry.update();
 
                         scoreThreeTimes();
@@ -331,7 +364,10 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
     }
 
     private void scoreThreeTimes() {
+        // Spin up flywheel first and wait 2 seconds for it to reach full speed before shooting
         flyWheel.setPower(0.65);
+        telemetry.addLine("Flywheel spinning up...");
+        telemetry.update();
         sleep(2000);
 
         for (int shot = 1;
@@ -372,7 +408,7 @@ public class BioBuzzFullAuto16515 extends LinearOpMode {
         stopDrive();
 
         if (flyWheel != null) {
-            flyWheel.setPower(0);
+            flyWheel.setPower(0.0);
         }
 
         if (upperGate != null) {
