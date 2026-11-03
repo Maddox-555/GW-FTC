@@ -3,8 +3,13 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+/**
+ * HardwareDriveSubsystem manages four mecanum drivetrain motors,
+ * handling inverse kinematics mixing, motor directions, encoder modes, and braking behavior.
+ */
 public class HardwareDriveSubsystem implements IMotorControl {
 
     private final DcMotorEx frontLeft;
@@ -12,6 +17,11 @@ public class HardwareDriveSubsystem implements IMotorControl {
     private final DcMotorEx backLeft;
     private final DcMotorEx backRight;
 
+    /**
+     * Initializes and configures all four mecanum drive motors using the HardwareMap.
+     *
+     * @param hardwareMap the FTC hardware map
+     */
     public HardwareDriveSubsystem(HardwareMap hardwareMap) {
 
         frontLeft = hardwareMap.get(DcMotorEx.class, "frontLeft");
@@ -19,6 +29,7 @@ public class HardwareDriveSubsystem implements IMotorControl {
         backLeft = hardwareMap.get(DcMotorEx.class, "backLeft");
         backRight = hardwareMap.get(DcMotorEx.class, "backRight");
 
+        // Configure motor directions for standard mecanum kinematics
         frontRight.setDirection(DcMotor.Direction.FORWARD);
         backRight.setDirection(DcMotor.Direction.REVERSE);
         frontLeft.setDirection(DcMotor.Direction.REVERSE);
@@ -33,6 +44,14 @@ public class HardwareDriveSubsystem implements IMotorControl {
         }
     }
 
+    /**
+     * Calculates and applies power to each mecanum wheel using inverse kinematics.
+     * Normalizes wheel powers if any exceeds 1.0.
+     *
+     * @param forward forward power [-1.0, 1.0]
+     * @param strafe  strafe power [-1.0, 1.0]
+     * @param turn    turn power [-1.0, 1.0]
+     */
     @Override
     public void drive(double forward, double strafe, double turn) {
 
@@ -55,6 +74,8 @@ public class HardwareDriveSubsystem implements IMotorControl {
         backRight.setPower(br / max);
     }
 
+
+    // Sets all drivetrain motor powers to zero
     @Override
     public void stop() {
         for (DcMotorEx motor : getMotors()) {
