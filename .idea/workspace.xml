@@ -5,7 +5,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="84cc1933-4baa-4999-9fe1-d697479f4040" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -186,6 +185,22 @@
         <entry key="a7c20815-6b76-4cfb-a4e0-8c5ae2368721">
           <value>
             <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="play_dynamic_filters_status">
+    <option name="appIdToCheckInfo">
+      <map>
+        <entry key="com.qualcomm.ftcrobotcontroller">
+          <value>
+            <CheckInfo lastCheckTimestamp="1793670594839" />
+          </value>
+        </entry>
+        <entry key="com.qualcomm.ftcrobotcontroller.test">
+          <value>
+            <CheckInfo lastCheckTimestamp="1793670594835" />
           </value>
         </entry>
       </map>
