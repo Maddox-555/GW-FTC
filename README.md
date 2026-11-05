@@ -21,7 +21,20 @@ To contribute to this codebase, ensure your development environment matches the 
 2. Open the Wi-Fi settings and connect to the robot's network (SSID: `16515-RC`, Password: `Greenwood`).
 3. Open the **FTC Driver Station** app.
 4. Verify the camera, battery voltage, and ping status are green in the top right corner.
-5. Press `Start + A` and `Start + B` on the DualShock 4 controllers to map Gamepad 1 and Gamepad 2.
+5. On the DualShock 4 controllers, press **Options + Cross (X)** to map Gamepad 1, and **Options + Circle (O)** to map Gamepad 2.
+
+## Hardware Configuration Map
+
+For the code to run correctly, the active configuration file on the REV Control Hub MUST match the names listed below exactly:
+
+| Hardware Type | Hub Port | Configuration Name | Description |
+| :--- | :--- | :--- | :--- |
+| Drive Motor | Port 0 | `frontLeft` | Front-left mecanum drive motor |
+| Drive Motor | Port 1 | `frontRight` | Front-right mecanum drive motor |
+| Drive Motor | Port 2 | `backLeft` | Back-left mecanum drive motor |
+| Drive Motor | Port 3 | `backRight` | Back-right mecanum drive motor |
+| Webcam | USB | `Webcam 1` | Logitech C920X Pro HD |
+| [Add Servo] | [Port] | `[name]` | [Description] |
 
 ## WKU Contributors
 * Maddox Simpson
