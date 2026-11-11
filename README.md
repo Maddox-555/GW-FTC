@@ -36,6 +36,36 @@ For the code to run correctly, the active configuration file on the REV Control 
 | Webcam | USB | `Webcam 1` | Logitech C920X Pro HD |
 | [Add Servo] | [Port] | `[name]` | [Description] |
 
+## Software Architecture & Features
+
+This project utilizes custom object-oriented design patterns to keep our code clean, modular, and easy to maintain.
+
+* **`RobotFacade`:** Provides a single, simplified interface for controlling complex subsystems (drivetrain, vision, logging) so OpModes remain clean and readable.
+* **`RobotMatchManager`:** A state machine that safely transitions the robot between Disabled, Autonomous, and TeleOp modes while monitoring for controller disconnects.
+* **Metrics Database:** A local SQLite database on the Control Hub that logs match cycle times, battery voltage drops, and error telemetry for post-match analysis.
+
+### Autonomous (`BioBuzzFullAuto16515`)
+Our autonomous routine relies on the Logitech C920X webcam and the FTC AprilTag Processor to dynamically navigate the field. 
+1. The robot scans for BIOBUZZ AprilTag clusters to determine the correct scoring target.
+2. It calculates 6DOF pose data (X, Y, Z, Yaw) to align itself automatically.
+3. [Add details about what the robot physically does, e.g., scores pollen, parks in the designated zone].
+
+### TeleOp (`BIOTELEOP1`)
+Driver-controlled mode utilizing field-centric mecanum driving. 
+* **Gamepad 1:** Controls drivetrain movement (Left Stick: Translate, Right Stick: Rotate).
+* **Gamepad 2:** Controls scoring mechanisms (intake, arm, launcher).
+
+## Spring Maintenance & Future Development
+
+For the Greenwood High School team taking over development for the remainder of the season, here is where to look when tuning or expanding the robot:
+
+1. **Adjusting Field Measurements & Target IDs:** 
+   If the physical field layout changes or you need to update which AprilTags to target, do **not** dig through the autonomous logic. Open `FieldConstants.java`—all hardcoded values are centralized there for easy updating.
+2. **Tuning Autonomous Speed & Precision:**
+   If the robot overshoots its target during autonomous, open `HardwareDriveSubsystem.java` to adjust the PID control coefficients, or adjust the autonomous delay settings in the Driver Station configuration menu.
+3. **Adding New Scoring Routines:**
+   If you add new physical mechanisms to the robot, instantiate them in `HardwareFactory.java` first, then create simple command methods (like `scorePollen()`) inside `RobotFacade.java` so your drivers can trigger them easily in TeleOp.
+
 ## WKU Contributors
 * Maddox Simpson
 * Chad Wilson
