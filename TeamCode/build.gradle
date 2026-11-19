@@ -32,6 +32,9 @@ android {
 dependencies {
     implementation project(':FtcRobotController')
 
+    // Laptop-only tests in src/test (no robot or emulator needed)
+    testImplementation 'junit:junit:4.13.2'
+
     androidTestImplementation 'androidx.test:runner:1.4.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
 }

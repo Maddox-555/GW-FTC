@@ -32,7 +32,7 @@ public class AprilTagVisionSystem implements ITagPoseData {
 
         visionPortal = new VisionPortal.Builder()
                 .setCamera(
-                        hardwareMap.get(WebcamName.class, "Webcam 1"))
+                        hardwareMap.get(WebcamName.class, RobotConstants.WEBCAM_NAME))
                 .addProcessor(aprilTag)
                 .build();
     }
@@ -43,16 +43,31 @@ public class AprilTagVisionSystem implements ITagPoseData {
     }
 
     /**
-     * Searches through current detections and returns the scoring target matching the given alliance.
+     * Returns the alliance HIVE cell to shoot at: either the SCORING or the AUDIENCE cluster.
+     * After each TIP the other cell faces up. The tags of a downward-facing cell point up,
+     * away from the camera, so the cluster the camera can see should be the upward-facing
+     * cell. If both are seen, the one with more tags found wins.
      *
      * @param alliance alliance string ("RED" or "BLUE")
-     * @return AprilTagDetection matching the alliance scoring cluster, or null if not found
+     * @return the alliance cluster detection with a pose, or null if none is seen
      */
     @Override
     public AprilTagDetection findScoringTarget(String alliance) {
-        for (AprilTagDetection detection : getDetections()) {
+        return findScoringTarget(getDetections(), alliance);
+    }
 
-            if (!(detection instanceof AprilTagClusterDetection)) {
+    /**
+     * Same as findScoringTarget(alliance), but searches a list of detections that was
+     * already fetched, so the target comes from the same camera frame as that list.
+     */
+    public static AprilTagDetection findScoringTarget(
+            List<AprilTagDetection> detections, String alliance) {
+        AprilTagClusterDetection best = null;
+
+        for (AprilTagDetection detection : detections) {
+
+            if (!(detection instanceof AprilTagClusterDetection)
+                    || detection.ftcPose == null) {
                 continue;
             }
 
@@ -65,13 +80,29 @@ public class AprilTagVisionSystem implements ITagPoseData {
             }
 
             String name = cluster.metadata.name;
+            boolean allianceCell = name.equalsIgnoreCase(alliance + " SCORING")
+                    || name.equalsIgnoreCase(alliance + " AUDIENCE");
 
-            if (name.equalsIgnoreCase(alliance + " SCORING")) {
-                return detection;
+            if (allianceCell
+                    && (best == null || cluster.percentClusterFound > best.percentClusterFound)) {
+                best = cluster;
             }
         }
 
-        return null;
+        return best;
+    }
+
+    /**
+     * Returns the cluster's name ("RED SCORING", etc.), or "none" if the detection isn't a named cluster.
+     */
+    public static String targetName(AprilTagDetection detection) {
+        if (detection instanceof AprilTagClusterDetection) {
+            AprilTagClusterDetection cluster = (AprilTagClusterDetection) detection;
+            if (cluster.metadata != null && cluster.metadata.name != null) {
+                return cluster.metadata.name;
+            }
+        }
+        return "none";
     }
 
     /**
