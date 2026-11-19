@@ -4,27 +4,24 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 
 import java.util.List;
 
+/*
+ * Shows whether the robot is in position to score, using the same camera, target
+ * and "ready" check as the Auto, and records what the camera sees to the metrics
+ * database. Also shows the numbers needed to measure the camera tilt and the
+ * HIVE cluster height (see RobotConstants).
+ */
 @TeleOp(name = "Hive Scoring Decision Test", group = "Vision")
 public class AprilTagPositionTest extends LinearOpMode {
 
-    private VisionPortal visionPortal;
-    private AprilTagProcessor aprilTag;
+    private AprilTagVisionSystem visionSystem;
 
     private String alliance = "RED";
-
-    private static final double DESIRED_DISTANCE = 24.0;
-    private static final double DISTANCE_TOLERANCE = 2.0;
-    private static final double X_TOLERANCE = 2.0;
-    private static final double BEARING_TOLERANCE = 5.0;
 
     // Metrics recording (saved to MetricsDatabase)
     private static final String OP_MODE_NAME = "Hive Scoring Decision Test";
@@ -36,25 +33,19 @@ public class AprilTagPositionTest extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        aprilTag = new AprilTagProcessor.Builder()
-                .setDrawTagOutline(true)
-                .setDrawTagID(true)
-                .build();
-
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, "C920X"))
-                .addProcessor(aprilTag)
-                .build();
+        visionSystem = new AprilTagVisionSystem(hardwareMap);
 
         metrics = MetricsDatabase.getInstance();
         ElapsedTime recordTimer = new ElapsedTime();
 
         telemetry.addLine("Hive Scoring Decision Test");
-        telemetry.addLine("Connect DualShock 4 to Driver Hub");
+        telemetry.addLine("Connect DualShock 4 to Driver Hub as gamepad 2");
         telemetry.addLine("Cross = Score request");
         telemetry.addLine("Circle = Cancel");
         telemetry.addLine("D-pad LEFT = Red alliance");
         telemetry.addLine("D-pad RIGHT = Blue alliance");
+        telemetry.addData("Aiming with", ShotGeometry.usesFloorGeometry()
+                ? "floor distance" : "camera numbers");
         telemetry.update();
 
         waitForStart();
@@ -79,17 +70,10 @@ public class AprilTagPositionTest extends LinearOpMode {
                 // Display controller input so you can verify the mapping
                 telemetry.addData("Cross / A", gamepad2.a);
                 telemetry.addData("Circle / B", gamepad2.b);
-                telemetry.addData("Square / X", gamepad2.x);
-                telemetry.addData("Triangle / Y", gamepad2.y);
                 telemetry.addData("Alliance", alliance);
 
-                boolean targetFound = false;
-                boolean targetReady = false;
-                String targetName = "No scoring cluster";
-                String decision = "SEARCHING";
-
                 List<AprilTagDetection> detections =
-                        aprilTag.getDetections();
+                        visionSystem.getDetections();
 
                 // Save a sample every RECORD_INTERVAL_MS so database
                 // writes don't slow the loop down
@@ -98,71 +82,52 @@ public class AprilTagPositionTest extends LinearOpMode {
                     recordDetections(detections);
                 }
 
-                for (AprilTagDetection detection : detections) {
+                // Same list as the one recorded above, so both come from one camera frame
+                AprilTagDetection target =
+                        AprilTagVisionSystem.findScoringTarget(detections, alliance);
 
-                    if (!(detection instanceof AprilTagClusterDetection)) {
-                        continue;
+                boolean targetReady = false;
+                String decision;
+
+                if (target == null) {
+                    decision = "SEARCHING FOR " + alliance + " CELL";
+                } else {
+                    ShotGeometry shot = new ShotGeometry(target.ftcPose);
+                    targetReady = shot.ready();
+
+                    telemetry.addData("Target", AprilTagVisionSystem.targetName(target));
+                    telemetry.addData("Distance", "%.1f in (want %.1f)",
+                            shot.distance, shot.desiredDistance);
+                    telemetry.addData("Side", "%.1f in", shot.side);
+                    telemetry.addData("Heading", "%.1f deg", shot.headingDeg);
+                    telemetry.addData("Upright", shot.upright);
+                    telemetry.addData("Correct distance", shot.correctDistance());
+                    telemetry.addData("Centered", shot.centered());
+                    telemetry.addData("Aimed", shot.aimed());
+
+                    // Numbers for measuring (see RobotConstants)
+                    telemetry.addLine("--- measuring ---");
+                    telemetry.addData("x / y / z", "%.1f / %.1f / %.1f in",
+                            target.ftcPose.x, target.ftcPose.y, target.ftcPose.z);
+                    telemetry.addData("3D distance", "%.1f in", shot.range3d);
+                    if (!Double.isNaN(shot.heightFromTilt)) {
+                        telemetry.addData("Cluster height above camera", "%.1f in",
+                                shot.heightFromTilt);
                     }
-
-                    AprilTagClusterDetection cluster =
-                            (AprilTagClusterDetection) detection;
-
-                    if (cluster.metadata == null
-                            || cluster.metadata.name == null) {
-                        continue;
+                    if (!Double.isNaN(shot.floorDistance)) {
+                        telemetry.addData("Floor distance", "%.1f in", shot.floorDistance);
+                        telemetry.addData("Camera tilt seen", "%.1f deg", shot.measuredTiltDeg);
                     }
-
-                    String name = cluster.metadata.name;
-
-                    if (!name.equalsIgnoreCase(alliance + " SCORING")) {
-                        continue;
+                    if (shot.tooCloseToMeasure) {
+                        telemetry.addLine("TOO CLOSE TO MEASURE - move back");
                     }
-
-                    targetFound = true;
-                    targetName = name;
-
-                    if (detection.ftcPose == null) {
-                        decision = "TARGET POSE UNAVAILABLE";
-                        break;
+                    if (shot.cameraMoved()) {
+                        telemetry.addLine("CAMERA MOVED? check the camera mount");
                     }
-
-                    double x = detection.ftcPose.x;
-                    double y = detection.ftcPose.y;
-                    double bearing = detection.ftcPose.bearing;
-                    double roll = detection.ftcPose.roll;
-
-                    boolean upright = Math.abs(roll) < 90.0;
-                    boolean correctDistance =
-                            Math.abs(y - DESIRED_DISTANCE)
-                                    <= DISTANCE_TOLERANCE;
-                    boolean centered =
-                            Math.abs(x) <= X_TOLERANCE;
-                    boolean aimed =
-                            Math.abs(bearing) <= BEARING_TOLERANCE;
-
-                    targetReady = upright
-                            && correctDistance
-                            && centered
-                            && aimed;
-
-                    telemetry.addData("Target X", "%.1f in", x);
-                    telemetry.addData("Target Y", "%.1f in", y);
-                    telemetry.addData("Bearing", "%.1f deg", bearing);
-                    telemetry.addData("Roll", "%.1f deg", roll);
-                    telemetry.addData("Upright", upright);
-                    telemetry.addData("Correct distance", correctDistance);
-                    telemetry.addData("Centered", centered);
-                    telemetry.addData("Aimed", aimed);
 
                     decision = targetReady
                             ? "TARGET READY"
                             : "ADJUST POSITION";
-
-                    break;
-                }
-
-                if (!targetFound) {
-                    decision = "SEARCHING FOR " + alliance + " SCORING";
                 }
 
                 // Circle cancels; Cross requests a simulated score.
@@ -178,8 +143,7 @@ public class AprilTagPositionTest extends LinearOpMode {
 
                 previousA = scorePressed;
 
-                telemetry.addData("Camera", visionPortal.getCameraState());
-                telemetry.addData("Target", targetName);
+                telemetry.addData("Camera", visionSystem.getCameraState());
                 telemetry.addData("Decision", decision);
                 telemetry.addData("Detections", detections.size());
                 telemetry.addData("Metrics Recorded", metricsRecorded);
@@ -187,14 +151,14 @@ public class AprilTagPositionTest extends LinearOpMode {
                 telemetry.update();
             }
         } finally {
-            visionPortal.close();
+            visionSystem.close();
         }
     }
 
     /*
-     * Saves the detection count, plus x / y / bearing for every
+     * Saves the detection count, plus x / y / z / bearing for every
      * tag or cluster that has a pose. This records everything the
-     * camera sees, not just the alliance scoring cluster.
+     * camera sees, not just the alliance cell.
      */
     private void recordDetections(List<AprilTagDetection> detections) {
         recordMetric("detections", detections.size());
@@ -211,15 +175,12 @@ public class AprilTagPositionTest extends LinearOpMode {
             if (detection instanceof AprilTagSingleDetection) {
                 source = "tag " + ((AprilTagSingleDetection) detection).id;
             } else if (detection instanceof AprilTagClusterDetection) {
-                AprilTagClusterDetection cluster =
-                        (AprilTagClusterDetection) detection;
-                if (cluster.metadata != null && cluster.metadata.name != null) {
-                    source = cluster.metadata.name;
-                }
+                source = AprilTagVisionSystem.targetName(detection);
             }
 
             recordMetric(source + " x", detection.ftcPose.x);
             recordMetric(source + " y", detection.ftcPose.y);
+            recordMetric(source + " z", detection.ftcPose.z);
             recordMetric(source + " bearing", detection.ftcPose.bearing);
         }
     }

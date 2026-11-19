@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -31,7 +30,7 @@ public class BIOTELEOP1 extends LinearOpMode {
 
         upperGate.setPosition(UPPER_GATE_CLOSED);
 
-        flyWheel.setDirection(DcMotor.Direction.FORWARD);
+        flyWheel.setDirection(RobotConstants.FLYWHEEL_DIRECTION);
 
         //Rev2mDistanceSensor revSensor = (Rev2mDistanceSensor) distanceSensor;
 
@@ -102,6 +101,8 @@ public class BIOTELEOP1 extends LinearOpMode {
                     robot.getDriveSubsystem().getBackLeftPosition(),
                     robot.getDriveSubsystem().getBackRightPosition()
             );
+            telemetry.addData("Flywheel power", flyWheel.getPower());
+            telemetry.addData("Flywheel velocity (ticks/s)", "%.0f", flyWheel.getVelocity());
             telemetry.addData("lowerGate Position", lowerGate.getPosition());
             telemetry.addData("upperGate Position", upperGate.getPosition());
             telemetry.addData("Distance(cm)", distanceCM);

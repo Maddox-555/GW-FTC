@@ -17,10 +17,10 @@ public interface ITagPoseData {
     List<AprilTagDetection> getDetections();
 
     /**
-     * Finds and returns the specific AprilTag detection matching the alliance scoring target.
+     * Finds the alliance HIVE cell to shoot at (the SCORING or AUDIENCE cluster, whichever is seen).
      *
      * @param alliance the alliance color string ("RED" or "BLUE")
-     * @return the matching AprilTagDetection, or null if not found
+     * @return the matching AprilTagDetection with a pose, or null if not found
      */
     AprilTagDetection findScoringTarget(String alliance);
 }
